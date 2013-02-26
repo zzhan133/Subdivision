@@ -8,10 +8,11 @@
 #include "iterators.h"
 
 using namespace MeshLib;
-
 using namespace std;
-#define Num 40000
+
+#define Num 20000
 #define TRUE  1
+
 
 int ifsharpequalone(map<int,int> &a)
 {
@@ -26,107 +27,16 @@ int ifsharpequalone(map<int,int> &a)
 	return 0;
 }
 
-void main(int argc, char *argv[])
+void Cut_redundantnode(Solid  &mesh)
 {
-	// Read in the obj file
-	Solid mesh;
-	OBJFileReader of;
-	std::ifstream in(argv[1]);
-	string filename = argv[1];
-	string::size_type npos = filename.find(".obj");
-	string s = ".m";
-	filename.replace(npos, 4,s);
-	of.readToSolid(&mesh, in);
-
-	/******************* Put you subdivision processing here *********************/
-
-
-	//1. highlights all edges  zz begin 2013-02-21 16:11:20
-
-	SolidEdgeIterator eiter(&mesh);
-	for(; !eiter.end(); ++eiter)
-	{
-		Edge *e = *eiter;
-		e->string ()=std::string("sharp");
-	}
-	//end zz 2013Äê2ÔÂ21ÈÕ16:18:10
-
-	//2. establish the adjacency list [2/21/2013 Zhe]
-	list<int> Graphface[Num];
-	SolidFaceIterator fiter(&mesh);
-	for(; !fiter.end(); ++fiter)
-	{
-		Face *f = *fiter;
-		FaceHalfedgeIterator hfiter(f);
-		HalfEdge *hf = NULL;
-		for (;!hfiter.end();++hfiter)
-		{		
-			hf = *hfiter;
-			hf = hf->he_sym();
-			Graphface[f->id()].push_back(hf->face()->id());
-		}
-	}
-	//  [2/21/2013 Zhe]
-
-	/************************************************************************/
-	/* // 3.MST Algorithm [19:00/2/21/2013 Zhe]                                                                     */
-	/************************************************************************/
-	list<int> Mstqueue;
-	queue<int> nLayer;
-	list<int>::iterator mstiterator,Mstqueueiterator,Layeriterator;
-	fiter.reset();
-	int a[Num] = {0};
-
-	Face *MSTface = *fiter;
-	Mstqueue.push_back(MSTface->id());
-	nLayer.push(MSTface->id()); //initialization
-	a[MSTface->id()] = TRUE;
-	while (!nLayer.empty())
-	{
-		int Faceid = nLayer.front();	
-		nLayer.pop();
-		//MstGraphface[Faceid].push_back(Faceid);
-		for (mstiterator = Graphface[Faceid].begin();mstiterator != Graphface[Faceid].end();++mstiterator)
-		{
-			//Layeriterator = find (Mstqueue.begin(), Mstqueue.end(), *mstiterator);
-			if (a[*mstiterator] == 0) 
-			{
-				Mstqueue.push_back(*mstiterator);
-				nLayer.push(*mstiterator);
-				a[*mstiterator] = TRUE;
-				int nFaceid_father = Faceid;
-				int nFaceId_son = *mstiterator;
-
-				MeshLib::Face *f = mesh.idFace (nFaceid_father);
-				MeshLib::FaceHalfedgeIterator fheiter(f);
-
-				MeshLib::Edge * inter_edge;
-				for (; !fheiter.end (); ++fheiter)
-				{
-					MeshLib::HalfEdge *he = *fheiter;
-					he = he->he_sym ();
-					if (he->face ()->id ()== nFaceId_son)
-					{
-						inter_edge=he->edge ();
-						inter_edge->string () = std::string("");
-						break;
-					}
-				}
-			}
-		}
-	}
-
-
-
-	// 3. cut the graph [23:19/2/21/2013 Zhe]
-	SolidVertexIterator iter(&mesh);
+	SolidVertexIterator piter(&mesh);
 	std::map<int, int> vidToObjID;
 
 	do 
 	{
-		for(; !iter.end(); ++iter)
+		for(; !piter.end(); ++piter)
 		{
-			Vertex *v = *iter;
+			Vertex *v = *piter;
 			MeshLib::VertexEdgeIterator edgeiter(v);
 			MeshLib::Edge * inter_edge;
 			int nsharp = 0;
@@ -157,11 +67,162 @@ void main(int argc, char *argv[])
 			}
 			vidToObjID[v->id()] = nsharp;
 		}
-		iter.reset();
+		piter.reset();
 
 	} while (ifsharpequalone(vidToObjID));
+}
 
-	mesh.write (filename.c_str()); 
 
-	//	os.close();
+//void Visit_DFS()
+//{
+//		
+//}
+
+//void()
+//{
+//
+//}
+void savegraph(Solid &mesh, map<Edge*,int> &Edgemap, int n)
+{
+	map<Edge*, int>::iterator itmap = Edgemap.begin();
+	while(itmap != Edgemap.end())
+	{
+		if (itmap->second != -1)
+		{
+			itmap->first->string() = "";
+		}
+		itmap++;
+	}
+	Cut_redundantnode(mesh);
+	char a[10];
+	_itoa(n,a,10);
+	string str = a;
+	str = str + ".m";
+	const char *p = str.c_str();
+	mesh.write(p);
+}
+
+void Recovery(Solid& mesh, list<Edge*> &Edgegraph)
+{
+	list<Edge*>::iterator iter =Edgegraph.begin();
+	for (;iter !=Edgegraph.end();iter++)
+	{
+		Edge* pEdge = *iter;
+		pEdge->string() = "sharp";
+	}
+}
+void main(int argc, char *argv[])
+{
+	// Read in the obj file
+	Solid mesh;
+	//OBJFileReader of;
+	std::ifstream in(argv[1]);
+	//of.readToSolid(&mesh, in);
+	mesh.read(in);
+
+	list<Edge*> Edgegraph;
+	map<Edge*,int> Edgemap;
+	int Edgeid = 0;
+	SolidEdgeIterator iter(&mesh);
+	for(;!iter.end();++iter)
+	{
+		Edge *e = *iter;
+		std::string stra = "sharp";
+		if (e->string() == stra)
+		{
+			Edgegraph.push_back(e);
+			Edgemap[e] = Edgeid;
+			Edgeid++;
+		}
+	}
+
+	// using adjacency lists to represent graph [16:20/2/24/2013 Zhe]
+	list<Edge*> Graphlist[Num];
+	list<Vertex*> Graphvertexlist[Num];
+	list<Vertex*> Verlist;
+	map<Edge*, int>::iterator itmap = Edgemap.begin();
+	while (itmap != Edgemap.end())
+	{
+		Edge* inedge = itmap->first;/*
+		Vertex *v1, *v2;
+		inedge->get_vertices(v1,v2);*/
+		list<Edge*>::iterator iteratorgraph= Edgegraph.begin();
+		for(;iteratorgraph != Edgegraph.end();iteratorgraph++)
+		{
+			Edge* jnedge = *iteratorgraph;
+			Vertex* pvertex = inedge->conjunction(jnedge);
+			Vertex* otherpoint = jnedge->other_vertex(pvertex);
+			if (inedge != jnedge && (pvertex != NULL))
+			{
+				Graphlist[itmap->second].push_back(jnedge);
+				Graphvertexlist[pvertex->id()].push_back(otherpoint);
+				Verlist.push_back(pvertex);
+			}
+		}
+		itmap++;		
+	}
+	// end [16:41/2/24/2013 Zhe]
+
+	//using BFS establish MST
+	int Indexgraph[Num] = {0};
+	//itmap = Edgemap.begin();
+	//int nIndex = itmap->second;
+	//Indexgraph[nIndex] = 1;
+	/*Vertex* first = Verlist.front();*/
+	queue<Vertex*> sharpIndex;
+	Vertex* pnVertex = Verlist.front();
+	sharpIndex.push(pnVertex);
+	Indexgraph[pnVertex->id()] = 1;
+	list<Vertex*>::iterator mstiterator;
+	list<Edge*> finalV;
+	while (!sharpIndex.empty())
+	{
+		Vertex* e = sharpIndex.front();
+		int nIndex = e->id();
+		sharpIndex.pop();
+		for(mstiterator = Graphvertexlist[nIndex].begin();mstiterator != Graphvertexlist[nIndex].end();++mstiterator)
+		{
+			if(0 == Indexgraph[(*mstiterator)->id()])
+			{
+				Indexgraph[(*mstiterator)->id()] = 1;
+				sharpIndex.push(*mstiterator);
+				int s = e->id();
+				int t = (*mstiterator)->id();
+				Edge *ed = mesh.idEdge(s,t);
+				finalV.push_back(ed);
+				Edgemap[ed] = -1;			
+			}
+		}
+
+	}
+
+	itmap = Edgemap.begin();
+	list<Edge*> individual;
+	while (itmap != Edgemap.end())
+	{
+		if (-1 != itmap->second)
+		{
+			individual.push_back(itmap->first);
+		}
+		itmap++;
+	}
+	if (individual.empty())
+	{
+		return;
+	}
+
+	list<Edge*>::iterator edgeiter = individual.begin();
+	int n = 10;
+	for(;edgeiter != individual.end();edgeiter++)
+	{
+		Edge* ped = *edgeiter;
+		int original = Edgemap[ped];
+		Edgemap[ped] = -1;
+		savegraph(mesh, Edgemap, n);
+		Edgemap[ped] = original;
+		n++;
+		Recovery(mesh,Edgegraph);
+	}
+
+
 }

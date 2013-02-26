@@ -32,6 +32,10 @@ void main(int argc, char *argv[])
 	Solid mesh;
 	OBJFileReader of;
 	std::ifstream in(argv[1]);
+	string filename = argv[1];
+	string::size_type npos = filename.find(".obj");
+	string s = ".m";
+	filename.replace(npos, 4,s);
 	of.readToSolid(&mesh, in);
 
 	/******************* Put you subdivision processing here *********************/
@@ -157,7 +161,7 @@ void main(int argc, char *argv[])
 
 	} while (ifsharpequalone(vidToObjID));
 
-	mesh.write ("kitten_1.m"); 
+	mesh.write (filename.c_str()); 
 
 	//	os.close();
 }
